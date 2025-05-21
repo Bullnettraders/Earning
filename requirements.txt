@@ -1,3 +1,5 @@
+discord.py
 yfinance
 pandas
 requests
+python-dotenv
