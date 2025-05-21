@@ -8,9 +8,8 @@ import discord
 import asyncio
 from datetime import datetime, timedelta
 
-# Load environment variables
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))  # Default to 0 if not set
+CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 
 POSTED_EARNINGS_FILE = "posted_earnings.json"
 TICKER_FILE = "nasdaq_tickers.csv"
@@ -18,9 +17,6 @@ TICKER_FILE = "nasdaq_tickers.csv"
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
 message_queue = asyncio.Queue()
-
-
-# ---- Ticker Download und Laden ----
 
 def download_nasdaq_ticker_list():
     url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
@@ -36,9 +32,6 @@ def load_tickers():
         download_nasdaq_ticker_list()
     df = pd.read_csv(TICKER_FILE)
     return df['Symbol'].dropna().unique().tolist()
-
-
-# ---- Earnings-Daten abrufen ----
 
 def get_next_earnings_for_ticker(ticker):
     try:
@@ -68,9 +61,6 @@ def get_earnings_calendar(for_tomorrow=False):
 
     return earnings
 
-
-# ---- Datenbank speichern/laden ----
-
 def load_posted(file):
     if os.path.exists(file):
         with open(file, "r") as f:
@@ -80,9 +70,6 @@ def load_posted(file):
 def save_posted(data, file):
     with open(file, "w") as f:
         json.dump(list(data), f)
-
-
-# ---- Discord-Post und Monitor-Loop ----
 
 async def post_earnings_to_discord(earnings):
     channel = client.get_channel(CHANNEL_ID)
@@ -127,17 +114,11 @@ async def discord_message_sender():
         earnings = await message_queue.get()
         await post_earnings_to_discord(earnings)
 
-
-# ---- Discord Events ----
-
 @client.event
 async def on_ready():
     print(f"✅ Eingeloggt als {client.user}")
     asyncio.create_task(earnings_monitor_loop())
     asyncio.create_task(discord_message_sender())
-
-
-# ---- Start ----
 
 if __name__ == "__main__":
     if not DISCORD_TOKEN or CHANNEL_ID == 0:
