@@ -1,13 +1,15 @@
 import os
 import json
-import time
+import asyncio
 import yfinance as yf
 import pandas as pd
 import requests
-import discord
-import asyncio
 from datetime import datetime, timedelta
 
+import discord
+from discord.ext import commands
+
+# === Konfiguration ===
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 
@@ -15,9 +17,10 @@ POSTED_EARNINGS_FILE = "posted_earnings.json"
 TICKER_FILE = "nasdaq_tickers.csv"
 
 intents = discord.Intents.default()
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 message_queue = asyncio.Queue()
 
+# === NASDAQ Ticker laden ===
 def download_nasdaq_ticker_list():
     url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
     response = requests.get(url)
@@ -33,6 +36,7 @@ def load_tickers():
     df = pd.read_csv(TICKER_FILE)
     return df['Symbol'].dropna().unique().tolist()
 
+# === Earnings Daten ===
 def get_next_earnings_for_ticker(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -61,6 +65,7 @@ def get_earnings_calendar(for_tomorrow=False):
 
     return earnings
 
+# === Gesehene speichern ===
 def load_posted(file):
     if os.path.exists(file):
         with open(file, "r") as f:
@@ -71,10 +76,11 @@ def save_posted(data, file):
     with open(file, "w") as f:
         json.dump(list(data), f)
 
+# === Discord Posting ===
 async def post_earnings_to_discord(earnings):
-    channel = client.get_channel(CHANNEL_ID)
+    channel = bot.get_channel(CHANNEL_ID)
     if not channel:
-        print("❌ Discord-Channel nicht gefunden.")
+        print("❌ Channel nicht gefunden.")
         return
 
     for e in earnings:
@@ -114,14 +120,33 @@ async def discord_message_sender():
         earnings = await message_queue.get()
         await post_earnings_to_discord(earnings)
 
-@client.event
+# === Discord Events ===
+@bot.event
 async def on_ready():
-    print(f"✅ Eingeloggt als {client.user}")
+    print(f"✅ Eingeloggt als {bot.user}")
     asyncio.create_task(earnings_monitor_loop())
     asyncio.create_task(discord_message_sender())
 
+# === Manueller Befehl ===
+@bot.command()
+async def earnings(ctx):
+    """Zeigt Earnings für heute oder morgen."""
+    for_tomorrow = datetime.now().hour >= 20
+    earnings = get_earnings_calendar(for_tomorrow=for_tomorrow)
+
+    if not earnings:
+        await ctx.send("🔍 Keine Earnings gefunden.")
+        return
+
+    msg = "**Earnings Vorschau:**\n"
+    for e in earnings[:10]:  # Max. 10
+        msg += f"`{e['ticker']}` – {e['company']} – `{e['datetime']}`\n"
+
+    await ctx.send(msg)
+
+# === Start ===
 if __name__ == "__main__":
     if not DISCORD_TOKEN or CHANNEL_ID == 0:
-        print("❌ Bitte DISCORD_TOKEN und DISCORD_CHANNEL_ID als Umgebungsvariablen setzen.")
+        print("❌ Bitte DISCORD_TOKEN und DISCORD_CHANNEL_ID setzen.")
     else:
-        client.run(DISCORD_TOKEN)
+        bot.run(DISCORD_TOKEN)
