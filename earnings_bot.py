@@ -16,7 +16,7 @@ CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 POSTED_EARNINGS_FILE = "posted_earnings.json"
 TICKER_FILE = "nasdaq_tickers.csv"
 
-intents = discord.Intents.default()
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 message_queue = asyncio.Queue()
 
@@ -80,7 +80,7 @@ def save_posted(data, file):
 async def post_earnings_to_discord(earnings):
     channel = bot.get_channel(CHANNEL_ID)
     if not channel:
-        print("❌ Channel nicht gefunden.")
+        print("❌ Discord-Channel nicht gefunden.")
         return
 
     for e in earnings:
@@ -127,7 +127,11 @@ async def on_ready():
     asyncio.create_task(earnings_monitor_loop())
     asyncio.create_task(discord_message_sender())
 
-# === Manueller Befehl ===
+# === Befehle ===
+@bot.command()
+async def ping(ctx):
+    await ctx.send("🏓 Pong!")
+
 @bot.command()
 async def earnings(ctx):
     """Zeigt Earnings für heute oder morgen."""
@@ -135,11 +139,11 @@ async def earnings(ctx):
     earnings = get_earnings_calendar(for_tomorrow=for_tomorrow)
 
     if not earnings:
-        await ctx.send("🔍 Keine Earnings gefunden.")
+        await ctx.send("🔍 **Keine aktuellen Earnings gefunden.** Bitte später erneut prüfen.")
         return
 
-    msg = "**Earnings Vorschau:**\n"
-    for e in earnings[:10]:  # Max. 10
+    msg = "**📊 Earnings Vorschau:**\n"
+    for e in earnings[:10]:  # Nur Top 10
         msg += f"`{e['ticker']}` – {e['company']} – `{e['datetime']}`\n"
 
     await ctx.send(msg)
