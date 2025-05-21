@@ -20,23 +20,31 @@ intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 message_queue = asyncio.Queue()
 
-# === NASDAQ Ticker laden ===
+# === Ticker laden ===
 def download_nasdaq_ticker_list():
     url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
-    response = requests.get(url)
-    if response.status_code == 200:
-        with open(TICKER_FILE, 'wb') as f:
-            f.write(response.content)
-    else:
-        raise Exception("Tickerliste konnte nicht geladen werden.")
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            with open(TICKER_FILE, 'wb') as f:
+                f.write(response.content)
+            print("✅ NASDAQ-Liste erfolgreich heruntergeladen.")
+        else:
+            print(f"⚠️ NASDAQ-Download fehlgeschlagen: {response.status_code}")
+    except Exception as e:
+        print(f"❌ Fehler beim NASDAQ-Download: {e}")
 
 def load_tickers():
-    if not os.path.exists(TICKER_FILE):
-        download_nasdaq_ticker_list()
-    df = pd.read_csv(TICKER_FILE)
-    return df['Symbol'].dropna().unique().tolist()
+    try:
+        if not os.path.exists(TICKER_FILE):
+            download_nasdaq_ticker_list()
+        df = pd.read_csv(TICKER_FILE)
+        return df['Symbol'].dropna().unique().tolist()
+    except:
+        print("⚠️ Fehler beim Laden der Tickerliste – fallback auf Standardliste.")
+        return ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "NFLX", "INTC", "AMD"]
 
-# === Earnings Daten ===
+# === Earnings-Daten ===
 def get_next_earnings_for_ticker(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -65,7 +73,7 @@ def get_earnings_calendar(for_tomorrow=False):
 
     return earnings
 
-# === Gesehene speichern ===
+# === Speicherung ===
 def load_posted(file):
     if os.path.exists(file):
         with open(file, "r") as f:
@@ -76,7 +84,7 @@ def save_posted(data, file):
     with open(file, "w") as f:
         json.dump(list(data), f)
 
-# === Discord Posting ===
+# === Discord-Logik ===
 async def post_earnings_to_discord(earnings):
     channel = bot.get_channel(CHANNEL_ID)
     if not channel:
@@ -143,7 +151,7 @@ async def earnings(ctx):
         return
 
     msg = "**📊 Earnings Vorschau:**\n"
-    for e in earnings[:10]:  # Nur Top 10
+    for e in earnings[:10]:  # Nur die ersten 10
         msg += f"`{e['ticker']}` – {e['company']} – `{e['datetime']}`\n"
 
     await ctx.send(msg)
