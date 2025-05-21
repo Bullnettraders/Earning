@@ -14,37 +14,22 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 
 POSTED_EARNINGS_FILE = "posted_earnings.json"
-TICKER_FILE = "nasdaq_tickers.csv"
+TICKER_FILE = "nasdaq_tickers.csv"  # <- Lokale CSV statt Download
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 message_queue = asyncio.Queue()
 
-# === Ticker laden ===
-def download_nasdaq_ticker_list():
-    url = "https://old.nasdaq.com/screening/companies-by-name.aspx?letter=0&exchange=nasdaq&render=download"
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            with open(TICKER_FILE, 'wb') as f:
-                f.write(response.content)
-            print("✅ NASDAQ-Liste erfolgreich heruntergeladen.")
-        else:
-            print(f"⚠️ NASDAQ-Download fehlgeschlagen: {response.status_code}")
-    except Exception as e:
-        print(f"❌ Fehler beim NASDAQ-Download: {e}")
-
+# === Ticker aus lokaler CSV laden ===
 def load_tickers():
     try:
-        if not os.path.exists(TICKER_FILE):
-            download_nasdaq_ticker_list()
         df = pd.read_csv(TICKER_FILE)
         return df['Symbol'].dropna().unique().tolist()
-    except:
-        print("⚠️ Fehler beim Laden der Tickerliste – fallback auf Standardliste.")
-        return ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NVDA", "NFLX", "INTC", "AMD"]
+    except Exception as e:
+        print(f"❌ Fehler beim Laden der CSV: {e}")
+        return []
 
-# === Earnings-Daten ===
+# === Earnings-Daten abrufen ===
 def get_next_earnings_for_ticker(ticker):
     try:
         stock = yf.Ticker(ticker)
@@ -151,7 +136,7 @@ async def earnings(ctx):
         return
 
     msg = "**📊 Earnings Vorschau:**\n"
-    for e in earnings[:10]:  # Nur die ersten 10
+    for e in earnings[:10]:  # Nur die ersten 10 anzeigen
         msg += f"`{e['ticker']}` – {e['company']} – `{e['datetime']}`\n"
 
     await ctx.send(msg)
